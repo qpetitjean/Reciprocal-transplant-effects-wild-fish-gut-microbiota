@@ -79,6 +79,51 @@ savingDir <- "C:/Users/qpetitjean/Desktop/WORK/POSTDOC_INP_GOLFECH_2023/R script
 Microbiome <- readRDS(file.path(savingDir, "Data/CleanedData", "fguts_Bact_agg_Caging_MergedRepSum.RDS"))
 Fish <- Microbiome
 
+# merge the duplicated samples (full replicates) by summing reads
+# As we made some duplicate samples (extraction, PCR, sequencing) to fill the plate, 
+# here we identify samples marked with _bis (duplicates): if the original sample already exists, 
+# we are summing the duplicate from the metabarlist; otherwise, 
+# we are keeping the sample and removing the _bis suffix.
+ids_to_remove <- character(0)
+bis_rows <- grep("_bis$", Fish$samples$Num_prlvt_Euth)
+
+for (i in bis_rows) {
+  bis_value  <- Fish$samples$Num_prlvt_Euth[i]
+  base_value <- sub("_bis$", "", bis_value)
+  
+  # look for the original sample in Num_prlvt_Euth
+  base_row <- which(Fish$samples$Num_prlvt_Euth == base_value)
+  
+  if (length(base_row) > 0) {
+    # sample IDs (= rownames used in reads / samples / pcrs)
+    dup_id  <- rownames(Fish$samples)[i]
+    base_id <- rownames(Fish$samples)[base_row[1]]
+    
+    # sum duplicate reads into the original sample
+    if (dup_id %in% rownames(Fish$reads) && base_id %in% rownames(Fish$reads)) {
+      Fish$reads[base_id, ] <- Fish$reads[base_id, ] + Fish$reads[dup_id, ]
+    }
+    # mark duplicate for removal
+    ids_to_remove <- c(ids_to_remove, dup_id)
+  } else {
+    # keep the sample but rename Num_prlvt_Euth by removing "_bis"
+    Fish$samples$Num_prlvt_Euth[i] <- base_value
+  }
+}
+
+# also remove a sample that is reported in the sample list but has not been analysed (#93 dead fish)
+ids_to_remove <- c(
+  ids_to_remove,
+  rownames(Fish$samples)[is.na(Fish$samples$pop) & grepl("C18", rownames(Fish$samples))]
+)
+
+ids_to_remove <- unique(ids_to_remove)
+
+# remove duplicate / excluded samples from all parts of the metabarlist
+Fish$samples <- Fish$samples[!rownames(Fish$samples) %in% ids_to_remove, , drop = FALSE]
+Fish$pcrs    <- Fish$pcrs[!rownames(Fish$pcrs) %in% ids_to_remove, , drop = FALSE]
+Fish$reads   <- Fish$reads[!rownames(Fish$reads) %in% ids_to_remove, , drop = FALSE]
+
 ###########################
 # Check sequencing depth  #
 ###########################
@@ -191,7 +236,7 @@ hill_table[which(hill_table$pcr_id %in% unreliable),]
 
 filteredDf <- df[which(!df$SampleID %in% unreliable),]
 min(filteredDf$SequencingDepth)
-hist(filteredDf$SequencingDepth, breaks=500, xlim=c(0,5000))
+hist(filteredDf$SequencingDepth, breaks=200, xlim=c(0,50000))
 
 
 #######################################################################
@@ -216,16 +261,16 @@ samples_to_remove <- to_remove$SampleID
 ########################################
 # Remove unreliable samples
 FishRefined <- 
-  metabaR::subset_metabarlist(Microbiome, 
+  metabaR::subset_metabarlist(Fish, 
                               "samples", 
-                              indices = !rownames(Microbiome$samples) %in% samples_to_remove)
+                              indices = !rownames(Fish$samples) %in% samples_to_remove)
 
-# how many samples removed - 88
-metabaR::summary_metabarlist(labMicrobiome)[[1]]["samples",1] - 
+# how many samples removed - 79
+metabaR::summary_metabarlist(Fish)[[1]]["samples",1] - 
   metabaR::summary_metabarlist(FishRefined)[[1]]["samples",1]
 
 # how many Motus removed - 0
-metabaR::summary_metabarlist(labMicrobiome)[[1]]["motus",1] - 
+metabaR::summary_metabarlist(Fish)[[1]]["motus",1] - 
   metabaR::summary_metabarlist(FishRefined)[[1]]["motus",1]
 
 # save the dataset for further analyses
