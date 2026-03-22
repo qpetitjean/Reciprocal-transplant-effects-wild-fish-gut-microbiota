@@ -229,7 +229,7 @@ metabaR::summary_metabarlist(labMicrobiome)[[1]]["motus",1] -
   metabaR::summary_metabarlist(FishRefined)[[1]]["motus",1]
 
 # save the dataset for further analyses
-saveRDS(FishRefined, file.path(savingDir, "Data/CleanedData", "fguts_Bact_agg_MergedRepSumRefined.RDS"))
+saveRDS(FishRefined, file.path(savingDir, "Data/CleanedData", "fguts_Bact_agg_Caging_MergedRepSumRefined.RDS"))
 
 # check the final content of the dataset for gut samples (reported in material and methods in the 2.4.2	Data Pre-Processing section)
 FishFinal <- metabaR::subset_metabarlist(FishRefined,
